@@ -1,16 +1,18 @@
 // Define pins:
-#define ULTRASONIC_TRIG_PIN 2
-#define ULTRASONIC_ECHO_PIN 3
-#define L298N_1_ENABLE_PIN 4
-#define L298N_1_IN1_PIN 5
-#define L298N_1_IN2_PIN 6
-#define L298N_1_IN3_PIN 7
-#define L298N_1_IN4_PIN 8
-#define L298N_2_ENABLE_PIN 9
-#define L298N_2_IN1_PIN 10
-#define L298N_2_IN2_PIN 11
-#define L298N_2_IN3_PIN 12
-#define L298N_2_IN4_PIN 13
+#define ULTRASONIC_TRIG_PIN 46
+#define ULTRASONIC_ECHO_PIN 48
+#define L298N_1_ENABLE_PIN_A 22
+#define L298N_1_ENABLE_PIN_B 28
+#define L298N_1_IN1_PIN 24
+#define L298N_1_IN2_PIN 26
+#define L298N_1_IN3_PIN 30
+#define L298N_1_IN4_PIN 32
+#define L298N_2_ENABLE_PIN_A 34
+#define L298N_2_ENABLE_PIN_B 44
+#define L298N_2_IN1_PIN 36
+#define L298N_2_IN2_PIN 38
+#define L298N_2_IN3_PIN 42
+#define L298N_2_IN4_PIN 40
 #define BAUD_RATE 9600
 #define MAX_EIGHT_BIT_VALUE 255
 
@@ -50,14 +52,16 @@ void ultrasonic_setup()
 void motor_controller_setup()
 {
   // for the first motor controller (front two motors)
-  pinMode(L298N_1_ENABLE_PIN, OUTPUT);
+  pinMode(L298N_1_ENABLE_PIN_A, OUTPUT);
+  pinMode(L298N_1_ENABLE_PIN_B, OUTPUT);
   pinMode(L298N_1_IN1_PIN, OUTPUT);
   pinMode(L298N_1_IN2_PIN, OUTPUT);
   pinMode(L298N_1_IN3_PIN, OUTPUT);
   pinMode(L298N_1_IN4_PIN, OUTPUT);
 
   // for the second motor controller (back two motors)
-  pinMode(L298N_2_ENABLE_PIN, OUTPUT);
+  pinMode(L298N_2_ENABLE_PIN_A, OUTPUT);
+  pinMode(L298N_2_ENABLE_PIN_B, OUTPUT);
   pinMode(L298N_2_IN1_PIN, OUTPUT);
   pinMode(L298N_2_IN2_PIN, OUTPUT);
   pinMode(L298N_2_IN3_PIN, OUTPUT);
@@ -91,12 +95,6 @@ float get_ultrasonic_distance_cm()
   // Calculate the distance:
   float distance_cm = duration * (0.5 * speed_of_sound_cm_per_us);
 
-  // Print the distance on the Serial Monitor (Ctrl+Shift+M):
-  Serial.print("Distance = ");
-  Serial.print(distance);
-  Serial.println(" cm");
-  delay(50);
-
   return distance_cm;
 }
 
@@ -108,6 +106,12 @@ float get_averaged_ultrasonic_distance_cm()
     avg_dist_cm += get_ultrasonic_distance_cm();
   }
   avg_dist_cm /= n_pts;
+
+  // Print the distance on the Serial Monitor (Ctrl+Shift+M):
+  Serial.print("Average distance = ");
+  Serial.print(avg_dist_cm);
+  Serial.println(" cm");
+  delay(50);
 
   return avg_dist_cm;
 }
@@ -142,20 +146,35 @@ void motor_function(enum motor_position pos,
     case FRONT_LEFT:
       pin1 = L298N_1_IN1_PIN;
       pin2 = L298N_1_IN2_PIN;
+      analogWrite(L298N_1_ENABLE_PIN_A, 255);
+      analogWrite(L298N_1_ENABLE_PIN_B, 255);
       break;
     case FRONT_RIGHT:
       pin1 = L298N_1_IN3_PIN;
       pin2 = L298N_1_IN4_PIN;
+      analogWrite(L298N_1_ENABLE_PIN_A, 255);
+      analogWrite(L298N_1_ENABLE_PIN_B, 255);
       break;
     case BACK_LEFT:
       pin1 = L298N_2_IN1_PIN;
       pin2 = L298N_2_IN2_PIN;
+      analogWrite(L298N_2_ENABLE_PIN_A, 255);
+      analogWrite(L298N_2_ENABLE_PIN_B, 255);
       break;
     case BACK_RIGHT:
       pin1 = L298N_2_IN3_PIN;
       pin2 = L298N_2_IN4_PIN;
+      analogWrite(L298N_2_ENABLE_PIN_A, 255);
+      analogWrite(L298N_2_ENABLE_PIN_B, 255);
       break;
   }
+
+/*
+  Serial.print("pin1 = ");
+  Serial.print(pin1);
+  Serial.print(", pin2 = ");
+  Serial.println(pin2);
+*/
   
   switch (function)
   {
@@ -231,18 +250,56 @@ void full_stop()
 void setup() 
 {
   // setup HC-SR04 ultrasonic sensor pins
-  ultrasonic_setup();
+  //ultrasonic_setup();
 
   // setup L298N H-bridge motor controller pins
   motor_controller_setup();
   
   //Begin Serial communication at a baudrate of 9600:
   Serial.begin(BAUD_RATE);
+
+  Serial.print("FRONT_LEFT = ");
+  Serial.println(FRONT_LEFT);
+  Serial.print("FORWARD = ");
+  Serial.println(FORWARD);
 }
 
 void loop() 
 {
-  
-  
+  /*
+  // Test 1: Drive "front" 2 motors
+  motor_function(FRONT_LEFT, FORWARD);
+  motor_function(FRONT_RIGHT, FORWARD);
+  delay(3000); // delay 3 sec
+  motor_function(FRONT_LEFT, STOP);
+  motor_function(FRONT_RIGHT, STOP);
+  delay(3000);
+  */
+
+/*
+  // Test 2: Drive "back" 2 motors
+  motor_function(BACK_LEFT, FORWARD);
+  motor_function(BACK_RIGHT, FORWARD);
+  delay(3000); // delay 3 sec
+  motor_function(BACK_LEFT, STOP);
+  motor_function(BACK_RIGHT, STOP);
+  delay(3000);
+  */
+
+
+  // Test 3: Drive all motors forward
+  go_forward();
+  delay(3000); // delay 3 sec
+  full_stop();
+  delay(3000);
+
+
+/*
+  // Test 4: Drive all motors backward
+  go_backward();
+  delay(3000); // delay 3 sec
+  full_stop();
+  delay(3000);
+*/
   
 }
