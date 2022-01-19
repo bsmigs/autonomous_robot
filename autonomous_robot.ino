@@ -1,3 +1,5 @@
+#include <Servo.h>
+
 // Define pins:
 #define ULTRASONIC_TRIG_PIN 46
 #define ULTRASONIC_ECHO_PIN 48
@@ -16,6 +18,7 @@
 #define BAUD_RATE 9600
 #define MAX_EIGHT_BIT_VALUE 255
 #define DEBUG 1
+#define RANGE_FINDER_SERVO_PIN 44
 
 /*
  * Front L298N motor controller: Out1 = green, Out2 = red, Out3 = green, Out4 = red
@@ -30,10 +33,12 @@ const int n_pts = 50;
 const float min_duty_cycle = 16.0; // percentage
 const float max_duty_cycle = 100.0; // percentage
 const float nominal_duty_cycle = 25.0; // percentage
-const float obstacle_threshold_dist_cm = 5.0;
+const float obstacle_threshold_dist_cm = 10.0;
 const float ewma_alpha = 0.5; // alpha constant for exponentially weighted moving average alg
 
 float ewma_dist_cm = 0.0; // exponentially weighted moving average global var
+
+Servo range_finder_servo;
 
 enum motor_state 
 {
@@ -48,6 +53,13 @@ enum motor_position
   FRONT_RIGHT,
   BACK_LEFT,
   BACK_RIGHT
+};
+
+enum rfs_servo_angles
+{
+  RIGHT = 0,
+  STRAIGHT = 90,
+  LEFT = 180
 };
 
 // Define methods
@@ -332,6 +344,61 @@ void test_5()
   delay(100);
 }
 
+void test_6()
+{
+  // Assuming the ranger finder servo is connected, want
+  // to scan a range of directions to determine where to move
+
+  int winner_angle = -1.0;
+  float max_range_cm = -1.0;
+  float curr_range_cm = -1.0;
+  for (int angle = RIGHT; angle <= LEFT; angle++)
+  {
+    range_finder_servo.write(angle);
+    curr_range_cm = get_ewma_ultrasonic_distance_cm();
+    delay(15);
+    if (curr_range_cm > max_range_cm)
+    {
+      max_range_cm = curr_range_cm;
+      winner_angle = angle;
+    }
+  }
+
+  // print out max range and direction chosen to go when debugging
+  #ifdef DEBUG
+    Serial.print("Max range cm = ");
+    Serial.print(max_range_cm);
+    Serial.print(", Winner direction = ");
+    Serial.println(winner_angle);
+  #endif
+  
+  if (max_range_cm <= obstacle_threshold_dist_cm)
+  {
+    // if close to an obstacle, stop then backup a bit
+    full_stop();
+    go_backward(nominal_duty_cycle);
+    delay(100);
+    full_stop();
+  }
+  else
+  {
+    // if obstacle far enough away decide which way
+    // to move based on largest range value
+    switch (winner_angle)
+    {
+      case RIGHT:
+        go_forward_right(nominal_duty_cycle);
+        break;
+      case STRAIGHT:
+        go_forward(nominal_duty_cycle);
+        break;
+      case LEFT:
+        go_forward_left(nominal_duty_cycle);
+        break;
+    }
+  }
+}
+
 void setup() 
 {
   // setup HC-SR04 ultrasonic sensor pins
@@ -339,6 +406,9 @@ void setup()
 
   // setup L298N H-bridge motor controller pins
   motor_controller_setup();
+
+  // range finder servo setup
+  range_finder_servo.attach(RANGE_FINDER_SERVO_PIN);
   
   //Begin Serial communication at a baudrate of 9600:
   Serial.begin(BAUD_RATE);
@@ -370,5 +440,8 @@ void loop()
 
   // Test 5: Drive forward and then stop when it's in range of a threshold
   //test_5();
-  
+
+  // Test 6: Include the range finder servo and see if we can determine which
+  // directions to move
+  //test_6();
 }
