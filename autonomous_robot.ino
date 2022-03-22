@@ -18,7 +18,7 @@
 #define BAUD_RATE 9600
 #define MAX_EIGHT_BIT_VALUE 255
 #define DEBUG 1
-#define RANGE_FINDER_SERVO_PIN 44
+#define RANGE_FINDER_SERVO_PIN 10
 
 /*
  * Front L298N motor controller: Out1 = green, Out2 = red, Out3 = green, Out4 = red
@@ -32,9 +32,12 @@ const float generic_delay_time_us = 5.0;
 const int n_pts = 50;
 const float min_duty_cycle = 16.0; // percentage
 const float max_duty_cycle = 100.0; // percentage
-const float nominal_duty_cycle = 25.0; // percentage
+const float nominal_duty_cycle = 45.0; // percentage
 const float obstacle_threshold_dist_cm = 10.0;
 const float ewma_alpha = 0.5; // alpha constant for exponentially weighted moving average alg
+const float max_dist_cm = 200;
+const float max_duration = 2*max_dist_cm / speed_of_sound_cm_per_us;
+const int turn_delay = 250;
 
 float ewma_dist_cm = 0.0; // exponentially weighted moving average global var
 
@@ -114,10 +117,10 @@ float get_ultrasonic_distance_cm()
   digitalWrite(ULTRASONIC_TRIG_PIN, LOW);
   
   // Read the ULTRASONIC_ECHO_PIN, pulseIn() returns the duration (length of the pulse) in microseconds:
-  long duration = pulseIn(ULTRASONIC_ECHO_PIN, HIGH);
+  long duration_us = pulseIn(ULTRASONIC_ECHO_PIN, HIGH);
   
   // Calculate the distance:
-  float distance_cm = duration * (0.5 * speed_of_sound_cm_per_us);
+  float distance_cm = duration_us * (0.5 * speed_of_sound_cm_per_us);
 
   return distance_cm;
 }
@@ -190,24 +193,24 @@ void motor_function(enum motor_position pos,
   switch (pos)
   {
     case FRONT_LEFT:
-      pin1 = FRONT_IN1_PIN;
-      pin2 = FRONT_IN2_PIN;
-      analogWrite(FRONT_ENABLE_PIN_A, eight_bit_speed);
-      break;
-    case FRONT_RIGHT:
       pin1 = FRONT_IN3_PIN;
       pin2 = FRONT_IN4_PIN;
       analogWrite(FRONT_ENABLE_PIN_B, eight_bit_speed);
       break;
-    case BACK_LEFT:
-      pin1 = BACK_IN1_PIN;
-      pin2 = BACK_IN2_PIN;
-      analogWrite(BACK_ENABLE_PIN_A, eight_bit_speed);
+    case FRONT_RIGHT:
+      pin1 = FRONT_IN1_PIN;
+      pin2 = FRONT_IN2_PIN;
+      analogWrite(FRONT_ENABLE_PIN_A, eight_bit_speed);
       break;
-    case BACK_RIGHT:
+    case BACK_LEFT:
       pin1 = BACK_IN3_PIN;
       pin2 = BACK_IN4_PIN;
       analogWrite(BACK_ENABLE_PIN_B, eight_bit_speed);
+      break;
+    case BACK_RIGHT:
+      pin1 = BACK_IN1_PIN;
+      pin2 = BACK_IN2_PIN;
+      analogWrite(BACK_ENABLE_PIN_A, eight_bit_speed);
       break;
   }
   
@@ -251,12 +254,28 @@ void go_backward(float duty_cycle)
 void go_forward_right(float duty_cycle)
 {
   motor_function(FRONT_LEFT, FORWARD, duty_cycle);
+  motor_function(FRONT_RIGHT, BACKWARD, duty_cycle+10);
+  motor_function(BACK_LEFT, FORWARD, duty_cycle);
+  motor_function(BACK_RIGHT, BACKWARD, duty_cycle+10);
+}
+
+void go_forward_left(float duty_cycle)
+{
+  motor_function(FRONT_LEFT, FORWARD, 0.25*duty_cycle);
+  motor_function(FRONT_RIGHT, FORWARD, duty_cycle);
+  motor_function(BACK_LEFT, FORWARD, 0.25*duty_cycle);
+  motor_function(BACK_RIGHT, FORWARD, duty_cycle);
+}
+
+void spin_left(float duty_cycle)
+{
+  motor_function(FRONT_LEFT, FORWARD, duty_cycle);
   motor_function(FRONT_RIGHT, BACKWARD, duty_cycle);
   motor_function(BACK_LEFT, FORWARD, duty_cycle);
   motor_function(BACK_RIGHT, BACKWARD, duty_cycle);
 }
 
-void go_forward_left(float duty_cycle)
+void spin_right(float duty_cycle)
 {
   motor_function(FRONT_LEFT, BACKWARD, duty_cycle);
   motor_function(FRONT_RIGHT, FORWARD, duty_cycle);
@@ -266,12 +285,12 @@ void go_forward_left(float duty_cycle)
 
 void go_backward_right(float duty_cycle)
 {
-  go_forward_left(duty_cycle);
+  spin_right(duty_cycle);
 }
 
 void go_backward_left(float duty_cycle)
 {
-  go_forward_right(duty_cycle);
+  spin_left(duty_cycle);
 }
 
 void full_stop()
@@ -318,13 +337,31 @@ void test_3()
   delay(3000);
 }
 
+void test_3a()
+{
+  // Test 3: spin left
+  spin_left(50);
+  delay(3000); // delay 3 sec
+  full_stop();
+  delay(3000);
+}
+
+void test_3b()
+{
+  // Test 3: turn right
+  go_forward_right(50);
+  delay(2000); // delay 2 sec
+  full_stop();
+  delay(2000);
+}
+
 void test_4()
 {
   // Test 4: Drive all motors backward
   go_backward(nominal_duty_cycle);
-  delay(3000); // delay 3 sec
+  delay(6000); // delay 3 sec
   full_stop();
-  delay(3000);
+  delay(2000);
 }
 
 void test_5()
@@ -346,23 +383,62 @@ void test_5()
 
 void test_6()
 {
-  // Assuming the ranger finder servo is connected, want
-  // to scan a range of directions to determine where to move
+  range_finder_servo.write(RIGHT);
+  delay(turn_delay);
+  range_finder_servo.write(STRAIGHT);
+  delay(turn_delay);
+  range_finder_servo.write(LEFT);
+  delay(turn_delay);
+  range_finder_servo.write(STRAIGHT);
+  delay(turn_delay);
+}
 
+
+
+void follow_best_path()
+{
+  // start off looking forward
+  range_finder_servo.write(FORWARD);
+  delay(500);
+
+  // get the distance ahead
+  curr_range_cm = get_ewma_ultrasonic_distance_cm();
+  if (curr_range_cm >= obstacle_threshold_dist_cm)
+  {
+    go_forward(nominal_duty_cycle);
+  }
+
+  //Keep checking the object distance until it is within the minimum stopping distance
+  while(curr_range_cm >= obstacle_threshold_dist_cm)                    
+  {
+    curr_range_cm = get_ewma_ultrasonic_distance_cm();
+    delay(250);
+  }
+
+  // if we get within stopping distance, stop
+  full_stop();
+  
+  // Assuming the ranger finder servo is connected, want
+  // to scan a range of directions to determine where to move.
+  // It will check left, forward, and right in order to make
+  // the decision
   int winner_angle = -1.0;
   float max_range_cm = -1.0;
   float curr_range_cm = -1.0;
-  for (int angle = RIGHT; angle <= LEFT; angle++)
+  for (int angle = RIGHT; angle <= LEFT; angle+=180)
   {
+    Serial.print("angle = ");
+    Serial.println(angle);
     range_finder_servo.write(angle);
     curr_range_cm = get_ewma_ultrasonic_distance_cm();
-    delay(15);
+    delay(500);
     if (curr_range_cm > max_range_cm)
     {
       max_range_cm = curr_range_cm;
       winner_angle = angle;
     }
   }
+  
 
   // print out max range and direction chosen to go when debugging
   #ifdef DEBUG
@@ -371,13 +447,14 @@ void test_6()
     Serial.print(", Winner direction = ");
     Serial.println(winner_angle);
   #endif
+
   
   if (max_range_cm <= obstacle_threshold_dist_cm)
   {
     // if close to an obstacle, stop then backup a bit
     full_stop();
     go_backward(nominal_duty_cycle);
-    delay(100);
+    delay(500);
     full_stop();
   }
   else
@@ -387,16 +464,20 @@ void test_6()
     switch (winner_angle)
     {
       case RIGHT:
-        go_forward_right(nominal_duty_cycle);
+        spin_left(nominal_duty_cycle);
+        delay(500);
         break;
       case STRAIGHT:
         go_forward(nominal_duty_cycle);
+        delay(500);
         break;
       case LEFT:
-        go_forward_left(nominal_duty_cycle);
+        spin_right(nominal_duty_cycle);
+        delay(500);
         break;
     }
   }
+  
 }
 
 void setup() 
@@ -434,6 +515,8 @@ void loop()
 
   // Test 3: Drive all motors forward
   //test_3();
+
+  //test_3b();
   
   // Test 4: Drive all motors backward
   //test_4();
@@ -444,4 +527,6 @@ void loop()
   // Test 6: Include the range finder servo and see if we can determine which
   // directions to move
   //test_6();
+
+  //follow_best_path();
 }
