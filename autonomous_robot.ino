@@ -17,13 +17,13 @@
 #define FRONT_IN4_PIN 42
 #define BAUD_RATE 9600
 #define MAX_EIGHT_BIT_VALUE 255
-#define DEBUG 1
+#define DEBUG 0
 #define RANGE_FINDER_SERVO_PIN 10
 
 /*
- * Front L298N motor controller: Out1 = green, Out2 = red, Out3 = green, Out4 = red
- * Back L298N motor controller: Out1 = green, Out2 = red, Out3 = green, Out4 = red
- */
+   Front L298N motor controller: Out1 = green, Out2 = red, Out3 = green, Out4 = red
+   Back L298N motor controller: Out1 = green, Out2 = red, Out3 = green, Out4 = red
+*/
 
 // Define constant variables:
 const float speed_of_sound_cm_per_us = 0.034;
@@ -33,17 +33,17 @@ const int n_pts = 50;
 const float min_duty_cycle = 16.0; // percentage
 const float max_duty_cycle = 100.0; // percentage
 const float nominal_duty_cycle = 45.0; // percentage
-const float obstacle_threshold_dist_cm = 10.0;
+const float stop_dist_cm = 35.0;
 const float ewma_alpha = 0.5; // alpha constant for exponentially weighted moving average alg
 const float max_dist_cm = 200;
-const float max_duration = 2*max_dist_cm / speed_of_sound_cm_per_us;
+const float max_duration = 2 * max_dist_cm / speed_of_sound_cm_per_us;
 const int turn_delay = 250;
 
 float ewma_dist_cm = 0.0; // exponentially weighted moving average global var
 
 Servo range_finder_servo;
 
-enum motor_state 
+enum motor_state
 {
   FORWARD,
   BACKWARD,
@@ -105,20 +105,20 @@ void motor_controller_setup()
 
 }
 
-float get_ultrasonic_distance_cm() 
+float get_ultrasonic_distance_cm()
 {
   // Clear the ULTRASONIC_TRIG_PIN by setting it LOW:
   digitalWrite(ULTRASONIC_TRIG_PIN, LOW);
   delayMicroseconds(generic_delay_time_us);
-  
+
   // Trigger the sensor by setting the ULTRASONIC_TRIG_PIN high for 10 microseconds:
   digitalWrite(ULTRASONIC_TRIG_PIN, HIGH);
   delayMicroseconds(trig_pin_high_time_us);
   digitalWrite(ULTRASONIC_TRIG_PIN, LOW);
-  
+
   // Read the ULTRASONIC_ECHO_PIN, pulseIn() returns the duration (length of the pulse) in microseconds:
   long duration_us = pulseIn(ULTRASONIC_ECHO_PIN, HIGH);
-  
+
   // Calculate the distance:
   float distance_cm = duration_us * (0.5 * speed_of_sound_cm_per_us);
 
@@ -135,12 +135,12 @@ float get_averaged_ultrasonic_distance_cm()
   avg_dist_cm /= n_pts;
 
   // Print the distance on the Serial Monitor (Ctrl+Shift+M):
-  #ifdef DEBUG
-    Serial.print("Average distance = ");
-    Serial.print(avg_dist_cm);
-    Serial.println(" cm");
-    delay(50);
-  #endif
+#ifdef DEBUG
+  Serial.print("Average distance = ");
+  Serial.print(avg_dist_cm);
+  Serial.println(" cm");
+  delay(50);
+#endif
 
   return avg_dist_cm;
 }
@@ -151,12 +151,12 @@ float get_ewma_ultrasonic_distance_cm()
   ewma_dist_cm = ewma_alpha * new_ewma_data + (1 - ewma_alpha) * ewma_dist_cm;
 
   // Print the distance on the Serial Monitor (Ctrl+Shift+M):
-  #ifdef DEBUG
-    Serial.print("Average distance = ");
-    Serial.print(ewma_dist_cm);
-    Serial.println(" cm");
-    delay(50);
-  #endif
+#ifdef DEBUG
+  Serial.print("Average distance = ");
+  Serial.print(ewma_dist_cm);
+  Serial.println(" cm");
+  delay(50);
+#endif
 
   return ewma_dist_cm;
 }
@@ -213,7 +213,7 @@ void motor_function(enum motor_position pos,
       analogWrite(BACK_ENABLE_PIN_A, eight_bit_speed);
       break;
   }
-  
+
   switch (function)
   {
     case FORWARD: // forward
@@ -251,46 +251,20 @@ void go_backward(float duty_cycle)
   motor_function(BACK_RIGHT, BACKWARD, duty_cycle);
 }
 
-void go_forward_right(float duty_cycle)
+void spin_right(float duty_cycle)
 {
   motor_function(FRONT_LEFT, FORWARD, duty_cycle);
-  motor_function(FRONT_RIGHT, BACKWARD, duty_cycle+10);
+  motor_function(FRONT_RIGHT, BACKWARD, duty_cycle + 20);
   motor_function(BACK_LEFT, FORWARD, duty_cycle);
-  motor_function(BACK_RIGHT, BACKWARD, duty_cycle+10);
-}
-
-void go_forward_left(float duty_cycle)
-{
-  motor_function(FRONT_LEFT, FORWARD, 0.25*duty_cycle);
-  motor_function(FRONT_RIGHT, FORWARD, duty_cycle);
-  motor_function(BACK_LEFT, FORWARD, 0.25*duty_cycle);
-  motor_function(BACK_RIGHT, FORWARD, duty_cycle);
+  motor_function(BACK_RIGHT, BACKWARD, duty_cycle + 20);
 }
 
 void spin_left(float duty_cycle)
 {
-  motor_function(FRONT_LEFT, FORWARD, duty_cycle);
-  motor_function(FRONT_RIGHT, BACKWARD, duty_cycle);
-  motor_function(BACK_LEFT, FORWARD, duty_cycle);
-  motor_function(BACK_RIGHT, BACKWARD, duty_cycle);
-}
-
-void spin_right(float duty_cycle)
-{
-  motor_function(FRONT_LEFT, BACKWARD, duty_cycle);
+  motor_function(FRONT_LEFT, FORWARD, duty_cycle + 20);
   motor_function(FRONT_RIGHT, FORWARD, duty_cycle);
-  motor_function(BACK_LEFT, BACKWARD, duty_cycle);
+  motor_function(BACK_LEFT, FORWARD, duty_cycle + 20);
   motor_function(BACK_RIGHT, FORWARD, duty_cycle);
-}
-
-void go_backward_right(float duty_cycle)
-{
-  spin_right(duty_cycle);
-}
-
-void go_backward_left(float duty_cycle)
-{
-  spin_left(duty_cycle);
 }
 
 void full_stop()
@@ -303,8 +277,8 @@ void full_stop()
 
 
 /*
- *  UNIT TESTS, SETUP, AND LOOP METHOD
- */
+    UNIT TESTS, SETUP, AND LOOP METHOD
+*/
 
 void test_1()
 {
@@ -349,7 +323,7 @@ void test_3a()
 void test_3b()
 {
   // Test 3: turn right
-  go_forward_right(50);
+  spin_right(50);
   delay(2000); // delay 2 sec
   full_stop();
   delay(2000);
@@ -369,7 +343,7 @@ void test_5()
   // Test 5: Drive forward and then stop when it's in range of a threshold
   //float dist_to_ether = get_averaged_ultrasonic_distance_cm();
   float dist_to_ether = get_ewma_ultrasonic_distance_cm();
-  if (dist_to_ether > obstacle_threshold_dist_cm)
+  if (dist_to_ether > stop_dist_cm)
   {
     go_forward(nominal_duty_cycle);
   }
@@ -398,89 +372,80 @@ void test_6()
 void follow_best_path()
 {
   // start off looking forward
-  range_finder_servo.write(FORWARD);
-  delay(500);
+  range_finder_servo.write(STRAIGHT);
+  delay(5);
 
   // get the distance ahead
-  curr_range_cm = get_ewma_ultrasonic_distance_cm();
-  if (curr_range_cm >= obstacle_threshold_dist_cm)
+  float curr_range_cm = get_ewma_ultrasonic_distance_cm();
+  if (curr_range_cm >= stop_dist_cm)
   {
     go_forward(nominal_duty_cycle);
   }
 
   //Keep checking the object distance until it is within the minimum stopping distance
-  while(curr_range_cm >= obstacle_threshold_dist_cm)                    
+  while (curr_range_cm >= stop_dist_cm)
   {
     curr_range_cm = get_ewma_ultrasonic_distance_cm();
-    delay(250);
+    //Serial.print("range (cm) = ");
+    //Serial.println(curr_range_cm);
+    delay(5);
   }
 
   // if we get within stopping distance, stop
   full_stop();
-  
+  delay(250);
+  //Serial.println("Stopped motors");
+
+
   // Assuming the ranger finder servo is connected, want
   // to scan a range of directions to determine where to move.
   // It will check left, forward, and right in order to make
   // the decision
-  int winner_angle = -1.0;
-  float max_range_cm = -1.0;
-  float curr_range_cm = -1.0;
-  for (int angle = RIGHT; angle <= LEFT; angle+=180)
-  {
-    Serial.print("angle = ");
-    Serial.println(angle);
-    range_finder_servo.write(angle);
-    curr_range_cm = get_ewma_ultrasonic_distance_cm();
-    delay(500);
-    if (curr_range_cm > max_range_cm)
-    {
-      max_range_cm = curr_range_cm;
-      winner_angle = angle;
-    }
-  }
-  
 
-  // print out max range and direction chosen to go when debugging
-  #ifdef DEBUG
-    Serial.print("Max range cm = ");
-    Serial.print(max_range_cm);
-    Serial.print(", Winner direction = ");
-    Serial.println(winner_angle);
-  #endif
+  range_finder_servo.write(RIGHT);
+  float right_range_cm = get_ewma_ultrasonic_distance_cm();
+  delay(500);
+  range_finder_servo.write(LEFT);
+  float left_range_cm = get_ewma_ultrasonic_distance_cm();
+  delay(500);
 
-  
-  if (max_range_cm <= obstacle_threshold_dist_cm)
+/*
+  Serial.print("Right range = ");
+  Serial.print(right_range_cm);
+  Serial.print(", left range = ");
+  Serial.println(left_range_cm);
+*/
+
+
+  if (right_range_cm >= max_dist_cm && left_range_cm >= max_dist_cm)
   {
-    // if close to an obstacle, stop then backup a bit
-    full_stop();
-    go_backward(nominal_duty_cycle);
-    delay(500);
-    full_stop();
+    // if both directions are valid, go right. In the future make this random
+    spin_right(nominal_duty_cycle);
+    delay(50);
   }
-  else
+  else if (right_range_cm <= stop_dist_cm && left_range_cm >= stop_dist_cm)
   {
-    // if obstacle far enough away decide which way
-    // to move based on largest range value
-    switch (winner_angle)
-    {
-      case RIGHT:
-        spin_left(nominal_duty_cycle);
-        delay(500);
-        break;
-      case STRAIGHT:
-        go_forward(nominal_duty_cycle);
-        delay(500);
-        break;
-      case LEFT:
-        spin_right(nominal_duty_cycle);
-        delay(500);
-        break;
-    }
+    // both directions are invalid, turn around
+    spin_right(nominal_duty_cycle);
+    delay(100);
   }
+  else if (right_range_cm >= left_range_cm)
+  {
+    // if more room to the right, go right
+    spin_right(nominal_duty_cycle);
+    delay(50);
+  }
+  else if (right_range_cm < left_range_cm)
+  {
+    // if more room to the left, go left
+    spin_left(nominal_duty_cycle);
+    delay(50);
+  }
+
   
 }
 
-void setup() 
+void setup()
 {
   // setup HC-SR04 ultrasonic sensor pins
   ultrasonic_setup();
@@ -490,26 +455,26 @@ void setup()
 
   // range finder servo setup
   range_finder_servo.attach(RANGE_FINDER_SERVO_PIN);
-  
+
   //Begin Serial communication at a baudrate of 9600:
   Serial.begin(BAUD_RATE);
 
-  #ifdef DEBUG
-    Serial.print("FRONT_LEFT = ");
-    Serial.println(FRONT_LEFT);
-    Serial.print("FORWARD = ");
-    Serial.println(FORWARD);
-  #endif
+#ifdef DEBUG
+  Serial.print("FRONT_LEFT = ");
+  Serial.println(FRONT_LEFT);
+  Serial.print("FORWARD = ");
+  Serial.println(FORWARD);
+#endif
 }
 
-void loop() 
+void loop()
 {
 
   //full_stop();
 
   // Test 1: Drive "front" 2 motors
   //test_1();
-  
+
   // Test 2: Drive "back" 2 motors
   //test_2();
 
@@ -517,7 +482,7 @@ void loop()
   //test_3();
 
   //test_3b();
-  
+
   // Test 4: Drive all motors backward
   //test_4();
 
