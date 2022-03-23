@@ -423,9 +423,11 @@ void follow_best_path()
     spin_right(nominal_duty_cycle);
     delay(50);
   }
-  else if (right_range_cm <= stop_dist_cm && left_range_cm >= stop_dist_cm)
+  else if (right_range_cm <= stop_dist_cm && left_range_cm <= stop_dist_cm)
   {
-    // both directions are invalid, turn around
+    // both directions are invalid, backup and then turn around
+    go_backward(nominal_duty_cycle);
+    delay(150);
     spin_right(nominal_duty_cycle);
     delay(100);
   }
