@@ -32,9 +32,9 @@ const float generic_delay_time_us = 5.0;
 const int n_pts = 50;
 const float min_duty_cycle = 16.0; // percentage
 const float max_duty_cycle = 100.0; // percentage
-const float nominal_duty_cycle = 45.0; // percentage
+const float nominal_duty_cycle = 35.0; // percentage
 const float stop_dist_cm = 35.0;
-const float ewma_alpha = 0.5; // alpha constant for exponentially weighted moving average alg
+const float ewma_alpha = 0.8; // alpha constant for exponentially weighted moving average alg
 const float max_dist_cm = 200;
 const float max_duration = 2 * max_dist_cm / speed_of_sound_cm_per_us;
 const int turn_delay = 250;
@@ -376,7 +376,8 @@ void follow_best_path()
   delay(5);
 
   // get the distance ahead
-  float curr_range_cm = get_ewma_ultrasonic_distance_cm();
+  float curr_range_cm = get_averaged_ultrasonic_distance_cm();
+  //float curr_range_cm = get_ewma_ultrasonic_distance_cm();
   if (curr_range_cm >= stop_dist_cm)
   {
     go_forward(nominal_duty_cycle);
@@ -385,10 +386,11 @@ void follow_best_path()
   //Keep checking the object distance until it is within the minimum stopping distance
   while (curr_range_cm >= stop_dist_cm)
   {
-    curr_range_cm = get_ewma_ultrasonic_distance_cm();
+    curr_range_cm = get_averaged_ultrasonic_distance_cm();
+    //curr_range_cm = get_ewma_ultrasonic_distance_cm();
     //Serial.print("range (cm) = ");
     //Serial.println(curr_range_cm);
-    delay(5);
+    delay(2);
   }
 
   // if we get within stopping distance, stop
@@ -403,10 +405,12 @@ void follow_best_path()
   // the decision
 
   range_finder_servo.write(RIGHT);
-  float right_range_cm = get_ewma_ultrasonic_distance_cm();
+  //float right_range_cm = get_ewma_ultrasonic_distance_cm();
+  float right_range_cm = get_averaged_ultrasonic_distance_cm();
   delay(500);
   range_finder_servo.write(LEFT);
-  float left_range_cm = get_ewma_ultrasonic_distance_cm();
+  //float left_range_cm = get_ewma_ultrasonic_distance_cm();
+  float left_range_cm = get_averaged_ultrasonic_distance_cm();
   delay(500);
 
 /*
@@ -421,27 +425,27 @@ void follow_best_path()
   {
     // if both directions are valid, go right. In the future make this random
     spin_right(nominal_duty_cycle);
-    delay(50);
+    delay(100);
   }
   else if (right_range_cm <= stop_dist_cm && left_range_cm <= stop_dist_cm)
   {
     // both directions are invalid, backup and then turn around
     go_backward(nominal_duty_cycle);
-    delay(150);
+    delay(250);
     spin_right(nominal_duty_cycle);
-    delay(100);
+    delay(200);
   }
   else if (right_range_cm >= left_range_cm)
   {
     // if more room to the right, go right
     spin_right(nominal_duty_cycle);
-    delay(50);
+    delay(100);
   }
   else if (right_range_cm < left_range_cm)
   {
     // if more room to the left, go left
     spin_left(nominal_duty_cycle);
-    delay(50);
+    delay(100);
   }
 
   
